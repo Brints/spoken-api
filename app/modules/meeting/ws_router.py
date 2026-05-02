@@ -101,6 +101,12 @@ async def audio_websocket(  # noqa: C901
         try:
             while True:
                 message = await websocket.receive()
+                if message.get("type") == "websocket.disconnect":
+                    logger.info(
+                        "Audio WS ingest got disconnect frame for %s",
+                        log_sanitizer.sanitize(user_id),
+                    )
+                    break
                 if message.get("text"):
                     try:
                         data = base64.b64decode(message["text"])
@@ -127,7 +133,16 @@ async def audio_websocket(  # noqa: C901
                     )
         except WebSocketDisconnect:
             logger.info(
-                "Audio WS client disconnected: %s", log_sanitizer.sanitize(user_id)
+                "Audio WS client disconnected (WebSocketDisconnect): %s",
+                log_sanitizer.sanitize(user_id),
+            )
+        except RuntimeError as exc:
+            # Starlette raises RuntimeError once the disconnect frame has been
+            # consumed. Treat it the same as a clean disconnect.
+            logger.info(
+                "Audio WS ingest RuntimeError (socket already closed) for %s: %s",
+                log_sanitizer.sanitize(user_id),
+                exc,
             )
 
     # --- Shared event so egress consumer is ready before we start ingesting ---

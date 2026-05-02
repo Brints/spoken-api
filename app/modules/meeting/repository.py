@@ -97,11 +97,11 @@ class MeetingRepository:
                     (
                         Room.ended_at.isnot(None),
                         func.round(
-                            (
-                                func.julianday(Room.ended_at)
-                                - func.julianday(Room.created_at)
+                            func.extract(
+                                "epoch",
+                                Room.ended_at - Room.created_at,
                             )
-                            * 1440
+                            / 60
                         ),
                     ),
                     else_=None,

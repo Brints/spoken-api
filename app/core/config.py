@@ -104,7 +104,7 @@ class Settings(BaseSettings):
     SYSTEM_PATH: str | None = None
 
     # URL used in transactional email links
-    FRONTEND_BASE_URL: str = "http://localhost:3000"
+    FRONTEND_BASE_URL: str = "http://localhost:4200"
 
     model_config = SettingsConfigDict(
         env_file=".env", case_sensitive=True, extra="ignore"

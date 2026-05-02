@@ -17,6 +17,7 @@ async def fluentmeet_exception_handler(_request: Request, exc: Any) -> JSONRespo
     """
     Handler for all custom FluentMeetException exceptions.
     """
+    logger.error(f"FluentMeetException: {exc.status_code} {exc.code} - {exc.message}")
     return create_error_response(
         status_code=exc.status_code,
         code=exc.code,
@@ -38,6 +39,7 @@ async def validation_exception_handler(_request: Request, exc: Any) -> JSONRespo
             }
         )
 
+    logger.error(f"Validation Error: {details}")
     return create_error_response(
         status_code=400,
         code="VALIDATION_ERROR",

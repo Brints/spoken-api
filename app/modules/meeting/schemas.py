@@ -52,6 +52,11 @@ class JoinRoomRequest(BaseModel):
         description="Language for receiving translations. "
         "Falls back to user profile language if not set.",
     )
+    speaking_language: str | None = Field(
+        default=None,
+        description="Language the participant will speak. "
+        "Used for STT source language selection.",
+    )
 
 
 # ── Response schemas ──────────────────────────────────────────────────

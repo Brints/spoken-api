@@ -16,6 +16,10 @@ from app.db.session import SessionLocal
 from app.kafka.manager import get_kafka_manager
 from app.routers import api_router
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
 logger = logging.getLogger(__name__)
 
 

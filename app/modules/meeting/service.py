@@ -27,6 +27,7 @@ from app.modules.meeting.models import MeetingInvitation, Participant, Room
 from app.modules.meeting.repository import MeetingRepository
 from app.modules.meeting.schemas import RoomConfigUpdate, RoomSettings
 from app.modules.meeting.state import MeetingStateService
+from app.services.connection_manager import get_connection_manager
 from app.services.email_producer import get_email_producer_service
 
 logger = logging.getLogger(__name__)
@@ -144,6 +145,11 @@ class MeetingService:
             room.participant_count = len(pts)  # type: ignore[attr-defined]
         else:
             room.participant_count = self.repo.count_all_participants(room.id)  # type: ignore[attr-defined]
+            if room.status == RoomStatus.ENDED.value:
+                room.total_participants = room.participant_count  # type: ignore[attr-defined]
+                if room.ended_at:
+                    delta = room.ended_at - room.created_at
+                    room.duration = _format_duration(int(delta.total_seconds()))  # type: ignore[attr-defined]
 
         return room
 
@@ -176,25 +182,24 @@ class MeetingService:
 
         is_host = bool(user and (room.host_id == user.id))
 
-        if room.scheduled_at:
-            # Normalize to naive UTC for comparison (SQLite strips tzinfo)
-            sched = (
-                room.scheduled_at.replace(tzinfo=None)
-                if room.scheduled_at.tzinfo
-                else room.scheduled_at
-            )
-            now = utc_now().replace(tzinfo=None)
-            if sched > now and not is_host:
-                raise BadRequestException(
-                    code="MEETING_NOT_STARTED",
-                    message="This meeting is scheduled for a future time.",
-                )
-
         if room.status == RoomStatus.PENDING.value:
             if is_host:
                 room.status = RoomStatus.ACTIVE.value
                 self.repo.update_room(room)
             else:
+                if room.scheduled_at:
+                    # Normalize to naive UTC for comparison (SQLite strips tzinfo)
+                    sched = (
+                        room.scheduled_at.replace(tzinfo=None)
+                        if room.scheduled_at.tzinfo
+                        else room.scheduled_at
+                    )
+                    now = utc_now().replace(tzinfo=None)
+                    if sched > now:
+                        raise BadRequestException(
+                            code="MEETING_NOT_STARTED",
+                            message="This meeting is scheduled for a future time.",
+                        )
                 raise BadRequestException(
                     code="MEETING_NOT_STARTED",
                     message="The host has not started this meeting yet.",
@@ -292,6 +297,17 @@ class MeetingService:
             final_lang = "en"
 
         await self.state.add_to_lobby(room_code, tracking_id, display_name, final_lang)
+
+        cm = get_connection_manager()
+        await cm.broadcast_to_room(
+            room_code,
+            {
+                "type": "lobby_knock",
+                "user_id": tracking_id,
+                "display_name": display_name,
+            },
+        )
+
         res: dict = {"status": "waiting"}
         if new_guest_token:
             res["guest_token"] = new_guest_token
@@ -307,6 +323,7 @@ class MeetingService:
         tracking_id: str,
         display_name: str,
         listening_language: str | None,
+        speaking_language: str | None,
         new_guest_token: str | None,
     ) -> dict:
         """Persist the participant record and add to Redis live state."""
@@ -325,14 +342,33 @@ class MeetingService:
 
         # Priority: explicit join request > user profile > default "en"
         if listening_language:
-            final_lang = listening_language
+            final_listen_lang = listening_language
         elif user and user.listening_language:
-            final_lang = user.listening_language
+            final_listen_lang = user.listening_language
         else:
-            final_lang = "en"
-        await self.state.add_participant(
-            room_code=room_code, user_id=tracking_id, language=final_lang
+            final_listen_lang = "en"
+
+        if speaking_language:
+            final_speak_lang = speaking_language
+        elif user and user.speaking_language:
+            final_speak_lang = user.speaking_language
+        else:
+            final_speak_lang = "en"
+
+        logger.info(
+            "JOIN: writing to Redis — room=%s tracking_id=%r listen=%s speak=%s",
+            room_code,
+            tracking_id,
+            final_listen_lang,
+            final_speak_lang,
         )
+        await self.state.add_participant(
+            room_code=room_code,
+            user_id=tracking_id,
+            language=final_listen_lang,
+            speaking_language=final_speak_lang,
+        )
+        logger.info("JOIN: Redis write complete for tracking_id=%r", tracking_id)
 
         res: dict = {"status": "joined"}
         if new_guest_token:
@@ -348,6 +384,7 @@ class MeetingService:
         guest_session_id: str | None = None,
         guest_name: str | None = None,
         listening_language: str | None = None,
+        speaking_language: str | None = None,
     ) -> dict:
         """Handle a user joining a room.
 
@@ -392,6 +429,7 @@ class MeetingService:
             tracking_id=tracking_id,
             display_name=display_name,
             listening_language=listening_language,
+            speaking_language=speaking_language,
             new_guest_token=new_guest_token,
         )
 

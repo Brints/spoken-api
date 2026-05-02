@@ -163,6 +163,7 @@ async def join_room(
         guest_session_id=guest_session_id,
         guest_name=payload.display_name if payload else None,
         listening_language=payload.listening_language if payload else None,
+        speaking_language=payload.speaking_language if payload else None,
     )
     return JSONResponse(
         content={"status": "success", "message": MSG_ROOM_JOINED, "data": result},
