@@ -92,6 +92,21 @@ def _build_service() -> tuple[MeetingService, MagicMock, AsyncMock]:
     return svc, repo, state
 
 
+@pytest.fixture(autouse=True)
+def mock_cm():
+    """Mock get_connection_manager project-wide for these tests.
+
+    This prevents real Redis connections and fixes 'Event loop is closed'
+    errors on Windows/asyncio.
+    """
+    with patch("app.modules.meeting.service.get_connection_manager") as mock_get:
+        mock_instance = MagicMock()
+        mock_instance.broadcast_to_room = AsyncMock()
+        mock_instance.send_to_user = AsyncMock()
+        mock_get.return_value = mock_instance
+        yield mock_instance
+
+
 # ---------------------------------------------------------------------------
 # _format_duration helper
 # ---------------------------------------------------------------------------
