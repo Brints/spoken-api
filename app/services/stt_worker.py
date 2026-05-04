@@ -97,6 +97,28 @@ class STTWorker(BaseConsumer):
             TEXT_ORIGINAL, transcription_event, key=payload.room_id
         )
 
+        # Broadcast active speaker event over WebSocket
+        try:
+            import asyncio
+
+            from app.services.connection_manager import get_connection_manager
+
+            manager = get_connection_manager()
+            task = asyncio.create_task(
+                manager.broadcast_to_room(
+                    payload.room_id,
+                    {
+                        "type": "active_speaker_changed",
+                        "user_id": payload.user_id,
+                    },
+                )
+            )
+            # Fix RUF006: Store a reference to the task to avoid garbage collection
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
+        except Exception as e:
+            logger.error("Failed to broadcast active speaker: %s", e)
+
         # 4. Log pipeline latency
         elapsed_ms = (time.monotonic() - pipeline_start) * 1000
         logger.info(

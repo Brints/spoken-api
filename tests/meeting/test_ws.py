@@ -16,8 +16,12 @@ def mock_redis():
     pubsub = MagicMock()
     pubsub.subscribe = AsyncMock()
     pubsub.unsubscribe = AsyncMock()
-    pubsub.listen = AsyncMock()
 
+    async def mock_listen():
+        if False:
+            yield
+
+    pubsub.listen.side_effect = mock_listen
     redis.pubsub.return_value = pubsub
     return redis
 
