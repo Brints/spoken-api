@@ -51,6 +51,7 @@ class BaseConsumer(abc.ABC):
         self._consumer: AIOKafkaConsumer | None = None
         self._running: bool = False
         self._task: asyncio.Task[None] | None = None
+        self._background_tasks: set[asyncio.Task] = set()
 
     async def start(self, bootstrap_servers: str) -> None:
         """

@@ -325,6 +325,7 @@ class MeetingService:
         listening_language: str | None,
         speaking_language: str | None,
         new_guest_token: str | None,
+        role: str = "guest",
     ) -> dict:
         """Persist the participant record and add to Redis live state."""
         if ptc is not None:
@@ -336,7 +337,7 @@ class MeetingService:
                 user_id=user.id if user else None,
                 guest_session_id=uuid.UUID(tracking_id) if not user else None,
                 display_name=display_name,
-                role=ParticipantRole.GUEST.value,
+                role=role,
             )
             self.repo.create_participant(ptc)
 
@@ -356,17 +357,23 @@ class MeetingService:
             final_speak_lang = "en"
 
         logger.info(
-            "JOIN: writing to Redis — room=%s tracking_id=%r listen=%s speak=%s",
+            (
+                "JOIN: writing to Redis — room=%s tracking_id=%r "
+                "listen=%s speak=%s role=%s"
+            ),
             room_code,
             tracking_id,
             final_listen_lang,
             final_speak_lang,
+            role,
         )
         await self.state.add_participant(
             room_code=room_code,
             user_id=tracking_id,
             language=final_listen_lang,
             speaking_language=final_speak_lang,
+            display_name=display_name,
+            role=role,
         )
         logger.info("JOIN: Redis write complete for tracking_id=%r", tracking_id)
 
@@ -431,6 +438,7 @@ class MeetingService:
             listening_language=listening_language,
             speaking_language=speaking_language,
             new_guest_token=new_guest_token,
+            role=ParticipantRole.HOST.value if is_host else ParticipantRole.GUEST.value,
         )
 
     async def leave_room(
@@ -482,12 +490,20 @@ class MeetingService:
         if room.host_id != host.id:
             raise ForbiddenException(message="Only the host can end the meeting.")
 
+        # Broadcast meeting_ended BEFORE clearing Redis so the WS channel
+        # still has active connections to deliver the message to.
+        cm = get_connection_manager()
+        await cm.broadcast_to_room(
+            room_code,
+            {"type": "meeting_ended"},
+        )
+
         # Update DB status
         room.status = RoomStatus.ENDED.value
         room.ended_at = utc_now()
         updated_room = self.repo.update_room(room)
 
-        # Clear Redis
+        # Clear Redis state (after broadcast so participants were still listed)
         await self.state.cleanup_room(room_code)
 
         # Inject total participants and duration for the response payload

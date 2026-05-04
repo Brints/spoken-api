@@ -1,8 +1,8 @@
-# FluentMeet 🎙️🌐
+# Spoken 🎙️🌐
 
 **"Speak your language, they hear theirs."**
 
-FluentMeet is a state-of-the-art, real-time voice translation video conferencing platform. It eliminates language barriers in global professional collaborations by providing instantaneous, natural-sounding voice translation, allowing participants to communicate naturally in their native tongues.
+Spoken is a real-time voice translation video conferencing platform. It eliminates language barriers in global professional collaborations by providing instantaneous, natural-sounding voice translation, allowing participants to communicate naturally in their native tongues.
 
 ---
 
@@ -70,7 +70,7 @@ graph TD
 ### **2. Cloning the Repository**
 ```bash
 git clone <repository-url>
-cd FluentMeet
+cd spoken-api
 ```
 
 ### **3. Environment Configuration**

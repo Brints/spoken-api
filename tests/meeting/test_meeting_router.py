@@ -4,9 +4,8 @@ Uses an in-memory SQLite database, FakeRedis, and the FastAPI TestClient
 to exercise full request → response cycles through ``/api/v1/meetings``.
 """
 
-import unittest
 from collections.abc import Generator
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import httpx
 import pytest
@@ -213,6 +212,16 @@ def email_producer_mock() -> AsyncMock:
 
 
 @pytest.fixture
+def mock_connection_manager() -> AsyncMock:
+    mock = AsyncMock()
+    mock.broadcast_to_room = AsyncMock()
+    mock.send_to_user = AsyncMock()
+    mock.connect = AsyncMock()
+    mock.disconnect = MagicMock()
+    return mock
+
+
+@pytest.fixture
 def token_store(fake_redis: FakeRedis) -> TokenStoreService:
     return TokenStoreService(redis_client=fake_redis)  # type: ignore[arg-type]
 
@@ -234,6 +243,7 @@ async def client(
     token_store: TokenStoreService,
     meeting_state: MeetingStateService,
     lockout_svc: AccountLockoutService,
+    mock_connection_manager: AsyncMock,
 ) -> httpx.AsyncClient:
     def _override_get_db() -> Generator[Session, None, None]:
         yield db_session
@@ -256,6 +266,19 @@ async def client(
         return lockout_svc
 
     app.dependency_overrides[get_account_lockout_service] = _override_lockout_svc
+
+    from app.services.connection_manager import get_connection_manager
+
+    def _override_connection_manager() -> AsyncMock:
+        return mock_connection_manager
+
+    app.dependency_overrides[get_connection_manager] = _override_connection_manager
+
+    import app.modules.meeting.router as router_module
+    import app.modules.meeting.service as service_module
+
+    router_module.get_connection_manager = _override_connection_manager
+    service_module.get_connection_manager = _override_connection_manager
 
     # Mock the kafka manager to prevent lifespan from bridging actual sockets
     import app.main as app_main_module
@@ -564,7 +587,10 @@ class TestEndRoomRoute:
 class TestUpdateConfigRoute:
     @pytest.mark.asyncio
     async def test_host_updates_config(
-        self, client: httpx.AsyncClient, db_session: Session
+        self,
+        client: httpx.AsyncClient,
+        db_session: Session,
+        mock_connection_manager: AsyncMock,
     ) -> None:
         _seed_user(db_session)
         token = await _login(client)
@@ -579,23 +605,19 @@ class TestUpdateConfigRoute:
             headers=_auth_headers(token),
         )
 
-        with unittest.mock.patch(
-            "app.services.connection_manager.ConnectionManager.broadcast_to_room",
-            new_callable=AsyncMock,
-        ) as mock_broadcast:
-            resp = await client.patch(
-                f"/api/v1/meetings/{room_code}/config",
-                json={"lock_room": True},
-                headers=_auth_headers(token),
-            )
+        resp = await client.patch(
+            f"/api/v1/meetings/{room_code}/config",
+            json={"lock_room": True},
+            headers=_auth_headers(token),
+        )
 
-            assert resp.status_code == 200
-            body = resp.json()
-            assert body["data"]["settings"]["lock_room"] is True
-            mock_broadcast.assert_called_once_with(
-                room_code,
-                {"event": "room_config_updated", "settings": body["data"]["settings"]},
-            )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["data"]["settings"]["lock_room"] is True
+        mock_connection_manager.broadcast_to_room.assert_called_once_with(
+            room_code,
+            {"event": "room_config_updated", "settings": body["data"]["settings"]},
+        )
 
     @pytest.mark.asyncio
     async def test_non_host_cannot_update_config(

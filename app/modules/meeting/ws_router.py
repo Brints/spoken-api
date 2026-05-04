@@ -37,7 +37,7 @@ async def signaling_websocket(
     Includes `suppress_original` messages for muting source audio.
     """
     try:
-        await assert_room_participant(room_code, user_id)
+        participant_state = await assert_room_participant(room_code, user_id)
     except Exception as e:
         await websocket.close(code=1008, reason=str(e))
         return
@@ -46,6 +46,21 @@ async def signaling_websocket(
 
     manager = get_connection_manager()
     await manager.connect(room_code, user_id, websocket)
+
+    # Announce this peer to everyone already in the room so the participant
+    # panel updates immediately without waiting for WebRTC negotiation.
+    display_name = participant_state.get("display_name", "")
+    role = participant_state.get("role", "guest")
+    await manager.broadcast_to_room(
+        room_code,
+        {
+            "type": "user_joined",
+            "user_id": user_id,
+            "display_name": display_name,
+            "role": role,
+        },
+        sender_id=user_id,  # Don't echo back to the joiner themselves
+    )
 
     try:
         while True:
@@ -66,9 +81,9 @@ async def signaling_websocket(
 
     except WebSocketDisconnect:
         manager.disconnect(room_code, user_id)
-        # Notify others that this peer left
+        # Notify others that this peer left (use user_left to match frontend model)
         await manager.broadcast_to_room(
-            room_code, {"type": "peer_left", "user_id": user_id}, sender_id=user_id
+            room_code, {"type": "user_left", "user_id": user_id}, sender_id=user_id
         )
 
 

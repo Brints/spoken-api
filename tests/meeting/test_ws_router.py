@@ -74,8 +74,10 @@ def test_signaling_websocket(mock_connection_manager):
         "room1", "user2", {"type": "offer", "target_user_id": "user2"}
     )
     mock_connection_manager.disconnect.assert_called_once_with("room1", "user1")
-    mock_connection_manager.broadcast_to_room.assert_called_once_with(
-        "room1", {"type": "peer_left", "user_id": "user1"}, sender_id="user1"
+    assert mock_connection_manager.broadcast_to_room.call_count == 2
+    # Verify second call is user_left
+    mock_connection_manager.broadcast_to_room.assert_any_call(
+        "room1", {"type": "user_left", "user_id": "user1"}, sender_id="user1"
     )
 
 
@@ -84,8 +86,12 @@ def test_audio_websocket_ingest(
     mock_audio_ingest,
     mock_kafka_consumer,
 ):
-    # We will simulate the async iterable for the consumer to yield nothing
-    mock_kafka_consumer.__aiter__.return_value = []
+    # Mock __aiter__ to be an async generator
+    async def mock_aiter():
+        if False:
+            yield
+
+    mock_kafka_consumer.__aiter__.side_effect = mock_aiter
 
     with client.websocket_connect(
         "/api/v1/ws/audio/room1?token=mock_token"

@@ -36,6 +36,8 @@ class MeetingStateService:
         language: str,
         speaking_language: str = "en",
         hardware_ready: bool = True,
+        display_name: str = "",
+        role: str = "guest",
     ) -> None:
         """Add or update a user's presence in the active room participants hash."""
         state = {
@@ -43,6 +45,8 @@ class MeetingStateService:
             "language": language,
             "speaking_language": speaking_language,
             "hardware_ready": hardware_ready,
+            "display_name": display_name,
+            "role": role,
         }
         await cast(
             "Awaitable[Any]",
