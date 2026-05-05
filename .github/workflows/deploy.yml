@@ -88,8 +88,9 @@ jobs:
           script: |
             set -e
             echo "==> Running Alembic migrations..."
-            docker compose -f ~/apps/spoken-api/docker-compose.prod.yml exec -T api \
-              alembic -c alembic.ini -x sqlalchemy.url="${DATABASE_URL_DIRECT}" upgrade head
+            docker compose -f docker-compose.prod.yml exec api bash
+            sed -i "s|sqlalchemy.url = .*|sqlalchemy.url = ${DATABASE_URL_DIRECT}|" alembic.ini
+            alembic upgrade head
             echo "==> Migrations complete."
         env:
           DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
