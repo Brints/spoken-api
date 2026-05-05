@@ -76,7 +76,7 @@ class VerificationToken(Base):
     """Model representing a verification token for email verification or password reset.
 
     Attributes:
-        id (int): Primary key identifier for the token.
+        id (uuid.UUID): Primary key identifier for the token.
         user_id (uuid.UUID): Foreign key referencing the associated user.
         token (str): Unique token string used for verification.
         expires_at (datetime): Timestamp indicating when the token expires.
@@ -84,8 +84,9 @@ class VerificationToken(Base):
     """
 
     __tablename__ = "verification_tokens"
-
-    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, index=True, default=uuid.uuid4
+    )
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     token: Mapped[str] = mapped_column(
         String(36),
@@ -106,7 +107,7 @@ class PasswordResetToken(Base):
     """Model representing a password reset token.
 
     Attributes:
-        id (int): Primary key identifier for the token.
+        id (uuid.UUID): Primary key identifier for the token.
         user_id (uuid.UUID): Foreign key referencing the associated user.
         token (str): Unique token string used for password reset.
         expires_at (datetime): Timestamp indicating when the token expires.
@@ -114,8 +115,9 @@ class PasswordResetToken(Base):
     """
 
     __tablename__ = "password_reset_tokens"
-
-    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, index=True, default=uuid.uuid4
+    )
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     token: Mapped[str] = mapped_column(
         String(36),
