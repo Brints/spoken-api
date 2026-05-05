@@ -73,9 +73,13 @@ async def run_migrations_online() -> None:
     if url_override:
         # Ensure we use asyncpg driver for async migrations
         if url_override.startswith("postgresql://"):
-            url_override = url_override.replace("postgresql://", "postgresql+asyncpg://", 1)
+            url_override = url_override.replace(
+                "postgresql://", "postgresql+asyncpg://", 1
+            )
         elif url_override.startswith("postgres://"):
-            url_override = url_override.replace("postgres://", "postgresql+asyncpg://", 1)
+            url_override = url_override.replace(
+                "postgres://", "postgresql+asyncpg://", 1
+            )
         section["sqlalchemy.url"] = url_override
 
     connectable = async_engine_from_config(
