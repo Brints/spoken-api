@@ -91,6 +91,7 @@ jobs:
             docker compose -f docker-compose.prod.yml exec api bash
             sed -i "s|sqlalchemy.url = .*|sqlalchemy.url = ${DATABASE_URL_DIRECT}|" alembic.ini
             alembic upgrade head
+            exit
             echo "==> Migrations complete."
         env:
           DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT }}
