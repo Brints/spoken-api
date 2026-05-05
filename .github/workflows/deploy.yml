@@ -56,9 +56,15 @@ jobs:
             docker compose -f docker-compose.prod.yml up -d api
 
             echo "==> Waiting for container to be healthy (up to 60s)..."
-            SECONDS=0
-            until [ "$(docker inspect --format='{{.State.Health.Status}}' spoken-api 2>/dev/null)" = "healthy" ] || [ $SECONDS -gt 60 ]; do
+            ITER=0
+            while [ $ITER -lt 12 ]; do
+              STATUS=$(docker inspect --format='{{.State.Health.Status}}' spoken-api 2>/dev/null || echo "starting")
+              echo "==> Current status: $STATUS"
+              if [ "$STATUS" = "healthy" ]; then
+                break
+              fi
               sleep 5
+              ITER=$((ITER + 1))
             done
 
             STATUS=$(docker inspect --format='{{.State.Health.Status}}' spoken-api 2>/dev/null || echo "unknown")
