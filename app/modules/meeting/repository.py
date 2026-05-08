@@ -2,9 +2,10 @@
 
 import uuid
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Row, and_, case, func, or_, select
+from sqlalchemy import Row, and_, case, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.modules.meeting.constants import ParticipantRole, RoomStatus
@@ -107,6 +108,21 @@ class MeetingRepository:
         self.db.commit()
         self.db.refresh(participant)
         return participant
+
+    def bulk_update_left_at(self, room_id: uuid.UUID, left_at_time: datetime) -> None:
+        """Sets left_at for all participants in a room who haven't left yet."""
+        stmt = (
+            update(Participant)
+            .where(
+                and_(
+                    Participant.room_id == room_id,
+                    Participant.left_at.is_(None),
+                )
+            )
+            .values(left_at=left_at_time)
+        )
+        self.db.execute(stmt)
+        self.db.commit()
 
     def count_all_participants(self, room_id: uuid.UUID) -> int:
         """Counts every unique participant that has ever joined the room.

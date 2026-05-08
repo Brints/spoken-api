@@ -118,6 +118,12 @@ class Settings(BaseSettings):
     # URL used in transactional email links
     FRONTEND_BASE_URL: str = "http://localhost:4200"
 
+    # CORS
+    CORS_ORIGINS: list[str] = [
+        "http://localhost:4200",
+        "https://spoken-frontend.onrender.com",
+    ]
+
     model_config = SettingsConfigDict(
         env_file=".env", case_sensitive=True, extra="ignore"
     )

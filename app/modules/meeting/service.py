@@ -525,9 +525,13 @@ class MeetingService:
         )
 
         # Update DB status
+        now = utc_now()
         room.status = RoomStatus.ENDED.value
-        room.ended_at = utc_now()
+        room.ended_at = now
         updated_room = self.repo.update_room(room)
+
+        # Update left_at for all participants who haven't left
+        self.repo.bulk_update_left_at(room.id, now)
 
         # Clear Redis state (after broadcast so participants were still listed)
         await self.state.cleanup_room(room_code)
