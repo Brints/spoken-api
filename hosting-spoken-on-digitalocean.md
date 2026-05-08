@@ -551,80 +551,58 @@ sudo vim /etc/nginx/sites-available/spoken-api.unraveldocs.xyz
 Paste this config:
 
 ```nginx
-# ── Upstream ─────────────────────────────────────────────────
 upstream fluentmeet_api {
     server 127.0.0.1:8000;
 }
-
-# ── HTTP → HTTPS redirect (will be active after SSL setup) ──
 server {
     listen 80;
     listen [::]:80;
-    server_name spoken.unraveldocs.xyz;
-
-    # Let's Encrypt challenge directory
+    server_name spoken-api.unraveldocs.xyz;
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
     }
-
     location / {
         return 301 https://$host$request_uri;
     }
 }
-
-# ── Main HTTPS Server (enable after SSL cert is obtained) ───
-# Uncomment this block AFTER running certbot in Step 8
-#
-# server {
-#     listen 443 ssl http2;
-#     listen [::]:443 ssl http2;
-#     server_name spoken.unraveldocs.xyz;
-#
-#     ssl_certificate     /etc/letsencrypt/live/spoken.unraveldocs.xyz/fullchain.pem;
-#     ssl_certificate_key /etc/letsencrypt/live/spoken.unraveldocs.xyz/privkey.pem;
-#     ssl_protocols       TLSv1.2 TLSv1.3;
-#     ssl_ciphers         HIGH:!aNULL:!MD5;
-#     ssl_prefer_server_ciphers on;
-#
-#     # Security headers
-#     add_header X-Frame-Options SAMEORIGIN always;
-#     add_header X-Content-Type-Options nosniff always;
-#     add_header X-XSS-Protection "1; mode=block" always;
-#     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-#
-#     # Max upload size
-#     client_max_body_size 50M;
-#
-#     # ── API & general proxy ────────────────────────────────
-#     location / {
-#         proxy_pass http://spoken_api;
-#         proxy_set_header Host $host;
-#         proxy_set_header X-Real-IP $remote_addr;
-#         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-#         proxy_set_header X-Forwarded-Proto $scheme;
-#
-#         # Timeouts
-#         proxy_connect_timeout 60s;
-#         proxy_send_timeout    60s;
-#         proxy_read_timeout    60s;
-#     }
-#
-#     # ── WebSocket endpoints ────────────────────────────────
-#     location /api/v1/meetings/ {
-#         proxy_pass http://spoken_api;
-#         proxy_http_version 1.1;
-#         proxy_set_header Upgrade $http_upgrade;
-#         proxy_set_header Connection "upgrade";
-#         proxy_set_header Host $host;
-#         proxy_set_header X-Real-IP $remote_addr;
-#         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-#         proxy_set_header X-Forwarded-Proto $scheme;
-#
-#         # WebSocket timeout — keep alive for long meetings
-#         proxy_read_timeout 3600s;
-#         proxy_send_timeout 3600s;
-#     }
-# }
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name spoken-api.unraveldocs.xyz;
+    ssl_certificate     /etc/letsencrypt/live/spoken-api.unraveldocs.xyz/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/spoken-api.unraveldocs.xyz/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_ciphers         HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+    add_header X-Frame-Options SAMEORIGIN always;
+    add_header X-Content-Type-Options nosniff always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    client_max_body_size 50M;
+    # ── WebSocket endpoints (MUST come before the generic location /) ──
+    location /api/v1/ws/ {
+        proxy_pass http://fluentmeet_api;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "Upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
+    }
+    # ── All other HTTP API routes ──────────────────────────────────────
+    location / {
+        proxy_pass http://fluentmeet_api;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout    60s;
+        proxy_read_timeout    60s;
+    }
+}
 ```
 
 ### 8b. Enable the Site
@@ -838,16 +816,16 @@ crontab -e
 
 ### Common Issues
 
-| Problem | Solution |
-|---------|----------|
-| `502 Bad Gateway` | API container isn't running. Check `docker compose logs api` |
-| `Connection refused` on port 8000 | Ensure `ports: "8000:8000"` is in compose and container is healthy |
-| Kafka OOM killed | Upgrade Droplet to 4 GB RAM |
-| SSL cert expired | Run `sudo certbot renew && sudo systemctl reload nginx` |
-| WebSocket drops | Check `proxy_read_timeout` in Nginx (should be `3600s`) |
-| DNS not resolving | Wait 30 min, verify A record in Namecheap, try `dig spoken.unraveldocs.xyz` |
-| `alembic` migration fails | Use port **5432** (direct), not 6543 (pooled). PgBouncer doesn't support DDL |
-| Supabase connection timeout | Ensure Droplet region matches Supabase region. Check Supabase dashboard for paused projects (free tier pauses after 1 week of inactivity) |
+| Problem                           | Solution                                                                                                                                  |
+|-----------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| `502 Bad Gateway`                 | API container isn't running. Check `docker compose logs api`                                                                              |
+| `Connection refused` on port 8000 | Ensure `ports: "8000:8000"` is in compose and container is healthy                                                                        |
+| Kafka OOM killed                  | Upgrade Droplet to 4 GB RAM                                                                                                               |
+| SSL cert expired                  | Run `sudo certbot renew && sudo systemctl reload nginx`                                                                                   |
+| WebSocket drops                   | Check `proxy_read_timeout` in Nginx (should be `3600s`)                                                                                   |
+| DNS not resolving                 | Wait 30 min, verify A record in Namecheap, try `dig spoken.unraveldocs.xyz`                                                               |
+| `alembic` migration fails         | Use port **5432** (direct), not 6543 (pooled). PgBouncer doesn't support DDL                                                              |
+| Supabase connection timeout       | Ensure Droplet region matches Supabase region. Check Supabase dashboard for paused projects (free tier pauses after 1 week of inactivity) |
 
 ### Monitoring Droplet Resources
 

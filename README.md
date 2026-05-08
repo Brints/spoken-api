@@ -100,7 +100,7 @@ docker-compose up -d
 ### **6. Database Migrations**
 Initialize the database schema using Alembic:
 ```bash
-alembic upgrade head
+alembic upgrade headalembic upgrade head
 ```
 
 ---
