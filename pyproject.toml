@@ -1,6 +1,6 @@
 [project]
 name = "FluentMeet"
-version = "1.17.0"
+version = "1.17.1"
 
 [tool.ruff]
 # Exclude a variety of commonly ignored directories.
