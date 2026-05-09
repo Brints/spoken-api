@@ -74,6 +74,19 @@ async def signaling_websocket(
         sender_id=user_id,  # Don't echo back to the joiner themselves
     )
 
+    # Tell the new user about all existing users so they can update their UI immediately
+    participants = await MeetingStateService().get_participants(room_code)
+    existing_users = [
+        {
+            "user_id": pid,
+            "display_name": pstate.get("display_name", ""),
+            "role": pstate.get("role", "guest"),
+        }
+        for pid, pstate in participants.items()
+        if pid != user_id
+    ]
+    await websocket.send_json({"type": "existing_users", "users": existing_users})
+
     try:
         while True:
             data = await websocket.receive_text()
