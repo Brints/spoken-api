@@ -60,12 +60,27 @@ def mock_kafka_consumer():
         yield consumer
 
 
+@pytest.fixture
+def mock_meeting_state():
+    with patch(
+        "app.modules.meeting.ws_router.MeetingStateService"
+    ) as mock_service_class:
+        service = MagicMock()
+        service.get_participants = AsyncMock(return_value={})
+        mock_service_class.return_value = service
+        yield service
+
+
 @pytest.mark.usefixtures("mock_room_participant")
-def test_signaling_websocket(mock_connection_manager):
+def test_signaling_websocket(mock_connection_manager, mock_meeting_state):
     # This will connect, send a text message, and then close
     with client.websocket_connect(
         "/api/v1/ws/signaling/room1?token=mock_token"
     ) as websocket:
+        # Consume the initial existing_users message
+        data = websocket.receive_json()
+        assert data["type"] == "existing_users"
+
         websocket.send_text(json.dumps({"type": "offer", "target_user_id": "user2"}))
         # The connection manager's send_to_user should be called
 
