@@ -71,8 +71,8 @@ def mock_meeting_state():
         yield service
 
 
-@pytest.mark.usefixtures("mock_room_participant")
-def test_signaling_websocket(mock_connection_manager, mock_meeting_state):
+@pytest.mark.usefixtures("mock_room_participant", "mock_meeting_state")
+def test_signaling_websocket(mock_connection_manager):
     # This will connect, send a text message, and then close
     with client.websocket_connect(
         "/api/v1/ws/signaling/room1?token=mock_token"
