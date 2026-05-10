@@ -144,6 +144,7 @@ class MeetingStateService:
 
         lobby_state = json.loads(lobby_data_raw)
         language = lobby_state.get("language", "en")
+        display_name = lobby_state.get("display_name", "")
 
         # A lightweight transaction (pipeline) to ensure we don't have partial state
         pipe = self._redis.pipeline()
@@ -153,6 +154,8 @@ class MeetingStateService:
             "status": "connected",
             "language": language,
             "hardware_ready": True,
+            "display_name": display_name,
+            "role": "guest",
         }
         pipe.hset(
             name=key_room_participants(room_code), key=user_id, value=json.dumps(state)

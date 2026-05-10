@@ -564,6 +564,9 @@ class TestAdmitUser:
         room = _make_room(host_id=host.id)
 
         repo.get_room_by_code.return_value = room
+        state.get_lobby.return_value = {
+            "u99": {"display_name": "Guest Bob", "language": "en"}
+        }
         state.admit_from_lobby.return_value = True
 
         await svc.admit_user(host=host, room_code="ABCDEF123456", target_user_id="u99")
@@ -591,6 +594,7 @@ class TestAdmitUser:
         room = _make_room(host_id=host.id)
 
         repo.get_room_by_code.return_value = room
+        state.get_lobby.return_value = {}
         state.admit_from_lobby.return_value = False
 
         with pytest.raises(BadRequestException, match="not in the lobby"):

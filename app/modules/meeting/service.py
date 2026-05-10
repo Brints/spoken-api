@@ -499,6 +499,10 @@ class MeetingService:
         if not room or room.host_id != host.id:
             raise ForbiddenException(message="Only the host can admit participants.")
 
+        # Fetch display_name BEFORE admit_from_lobby removes the entry from the lobby hash.
+        lobby = await self.state.get_lobby(room_code)
+        display_name = lobby.get(target_user_id, {}).get("display_name", "")
+
         was_in_lobby = await self.state.admit_from_lobby(room_code, target_user_id)
 
         if not was_in_lobby:
@@ -507,6 +511,19 @@ class MeetingService:
         cm = get_connection_manager()
         await cm.send_to_user(
             room_code, target_user_id, {"type": "admitted", "room_code": room_code}
+        )
+        # Notify existing participants that the newly admitted user has joined.
+        # Without this broadcast, peers already in the room never know the new
+        # participant exists and won't initiate WebRTC offers to them.
+        await cm.broadcast_to_room(
+            room_code,
+            {
+                "type": "user_joined",
+                "user_id": target_user_id,
+                "display_name": display_name,
+                "role": "guest",
+            },
+            sender_id=target_user_id,  # Exclude the admitted user (they'll join themselves)
         )
 
     async def end_room(self, host: User, room_code: str) -> Room:
