@@ -94,6 +94,11 @@ async def signaling_websocket(
                 payload = json.loads(data)
                 target_user_id = payload.get("target_user_id")
 
+                # Always inject the sender's identity so the recipient knows
+                # who sent the offer/answer/ice_candidate. Without this,
+                # from_user_id is undefined on the frontend.
+                payload["from_user_id"] = user_id
+
                 # If target specified, unicast. Otherwise, broadcast.
                 if target_user_id:
                     await manager.send_to_user(room_code, target_user_id, payload)

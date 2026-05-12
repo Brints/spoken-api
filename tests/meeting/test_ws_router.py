@@ -86,7 +86,9 @@ def test_signaling_websocket(mock_connection_manager):
 
     mock_connection_manager.connect.assert_called_once()
     mock_connection_manager.send_to_user.assert_called_once_with(
-        "room1", "user2", {"type": "offer", "target_user_id": "user2"}
+        "room1",
+        "user2",
+        {"type": "offer", "target_user_id": "user2", "from_user_id": "user1"},
     )
     mock_connection_manager.disconnect.assert_called_once_with("room1", "user1")
     assert mock_connection_manager.broadcast_to_room.call_count == 2
