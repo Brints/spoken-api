@@ -164,7 +164,10 @@ async def audio_websocket(  # noqa: C901
                     try:
                         data = base64.b64decode(message["text"])
                     except Exception as exc:
-                        logger.warning(f"Failed to decode base64 audio text frame. Skipping frame. Error: {exc}")
+                        logger.warning(
+                            f"Failed to decode base64 audio text frame. "
+                            f"Skipping frame. Error: {exc}"
+                        )
                         continue
                 elif "bytes" in message and message["bytes"] is not None:
                     data = message["bytes"]
