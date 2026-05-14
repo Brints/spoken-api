@@ -95,8 +95,7 @@ async def signaling_websocket(
                 target_user_id = payload.get("target_user_id")
 
                 # Always inject the sender's identity so the recipient knows
-                # who sent the offer/answer/ice_candidate. Without this,
-                # from_user_id is undefined on the frontend.
+                # who sent the offer/answer/ice_candidate.
                 payload["from_user_id"] = user_id
 
                 # If target specified, unicast. Otherwise, broadcast.
@@ -164,8 +163,11 @@ async def audio_websocket(  # noqa: C901
                 if message.get("text"):
                     try:
                         data = base64.b64decode(message["text"])
-                    except Exception:
-                        logger.warning("Failed to decode base64 audio text frame.")
+                    except Exception as exc:
+                        logger.warning(
+                            f"Failed to decode base64 audio text frame. "
+                            f"Skipping frame. Error: {exc}"
+                        )
                         continue
                 elif "bytes" in message and message["bytes"] is not None:
                     data = message["bytes"]
