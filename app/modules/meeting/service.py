@@ -285,6 +285,7 @@ class MeetingService:
         tracking_id: str,
         display_name: str,
         listening_language: str | None,
+        speaking_language: str | None,
         new_guest_token: str | None,
         live_pts: dict,
     ) -> dict | None:
@@ -319,7 +320,20 @@ class MeetingService:
         else:
             final_lang = "en"
 
-        await self.state.add_to_lobby(room_code, tracking_id, display_name, final_lang)
+        if speaking_language:
+            final_speak_lang = speaking_language
+        elif user and user.speaking_language:
+            final_speak_lang = user.speaking_language
+        else:
+            final_speak_lang = "en"
+
+        await self.state.add_to_lobby(
+            room_code,
+            tracking_id,
+            display_name,
+            final_lang,
+            speaking_language=final_speak_lang,
+        )
 
         cm = get_connection_manager()
         await cm.broadcast_to_room(
@@ -445,6 +459,7 @@ class MeetingService:
             tracking_id=tracking_id,
             display_name=display_name,
             listening_language=listening_language,
+            speaking_language=speaking_language,
             new_guest_token=new_guest_token,
             live_pts=live_pts,
         )

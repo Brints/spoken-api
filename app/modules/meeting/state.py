@@ -11,6 +11,7 @@ from typing import Any, cast
 
 import redis.asyncio as aioredis
 
+from app.core.sanitize import sanitize_for_log
 from app.modules.auth.token_store import _get_redis_client
 from app.modules.meeting.constants import (
     key_room_active_speaker,
@@ -106,12 +107,18 @@ class MeetingStateService:
     # ── Lobby Set ────────────────────────────────────────────────────────
 
     async def add_to_lobby(
-        self, room_code: str, user_id: str, display_name: str, language: str
+        self,
+        room_code: str,
+        user_id: str,
+        display_name: str,
+        language: str,
+        speaking_language: str = "en",
     ) -> None:
         """Place a user in the waiting room/lobby hash."""
         state = {
             "display_name": display_name,
             "language": language,
+            "speaking_language": speaking_language,
         }
         await cast(
             "Awaitable[Any]",
@@ -144,6 +151,7 @@ class MeetingStateService:
 
         lobby_state = json.loads(lobby_data_raw)
         language = lobby_state.get("language", "en")
+        speaking_language = lobby_state.get("speaking_language", "en")
         display_name = lobby_state.get("display_name", "")
 
         # A lightweight transaction (pipeline) to ensure we don't have partial state
@@ -153,6 +161,7 @@ class MeetingStateService:
         state = {
             "status": "connected",
             "language": language,
+            "speaking_language": speaking_language,
             "hardware_ready": True,
             "display_name": display_name,
             "role": "guest",
@@ -198,4 +207,6 @@ class MeetingStateService:
         )
         if keys:
             await self._redis.delete(*keys)
-            logger.info("Cleaned up Redis state for room %s", room_code)
+            logger.info(
+                "Cleaned up Redis state for room %s", sanitize_for_log(room_code)
+            )
