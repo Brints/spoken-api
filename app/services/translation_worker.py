@@ -43,6 +43,7 @@ class TranslationWorker(BaseConsumer):
     topic = TEXT_ORIGINAL
     group_id = "translation-worker-group"
     event_schema = TranscriptionEvent
+    max_message_age_ms = 120_000  # skip transcriptions from dead sessions
 
     def __init__(self, producer: object) -> None:
         super().__init__(producer=producer)

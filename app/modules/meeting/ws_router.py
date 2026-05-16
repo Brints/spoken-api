@@ -219,7 +219,7 @@ async def audio_websocket(  # noqa: C901
         # to this consumer and auto_offset_reset="latest" starts from the tail.
         # A group-less consumer in AIOKafka requires explicit partition.assign()
         # which is unreliable on a freshly-joined broker; a unique group is simpler.
-        group_id = f"audio-egress-{room_code}-{user_id}-{int(time.time())}"
+        group_id = f"audio-egress-{room_code}-{user_id}-{time.time_ns()}"
         consumer = AIOKafkaConsumer(
             AUDIO_SYNTHESIZED,
             bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
@@ -240,11 +240,6 @@ async def audio_websocket(  # noqa: C901
             egress_ready.set()  # Unblock ingest so ingest can still run
             return
 
-        logger.info(
-            "Egress consumer ready. group=%s listening_language=%s",
-            sanitize_for_log(group_id),
-            sanitize_for_log(listening_language),
-        )
         egress_ready.set()  # Signal that we are ready to receive
 
         # Track the highest sequence seen to drop stale frames arriving out-of-order
@@ -255,15 +250,6 @@ async def audio_websocket(  # noqa: C901
                 try:
                     event = SynthesizedAudioEvent.model_validate(msg.value)
                     payload = event.payload
-
-                    logger.info(
-                        "Egress received: room=%s target_lang=%s"
-                        " listening_lang=%s seq=%d",
-                        sanitize_for_log(payload.room_id),
-                        sanitize_for_log(payload.target_language),
-                        sanitize_for_log(listening_language),
-                        sanitize_for_log(payload.sequence_number),
-                    )
 
                     # Filter by Room
                     if payload.room_id != room_code:
@@ -306,12 +292,6 @@ async def audio_websocket(  # noqa: C901
                     audio_bytes = base64.b64decode(payload.audio_data)
                     try:
                         await websocket.send_bytes(audio_bytes)
-                        logger.info(
-                            "Egress: sent %d bytes to user=%s (seq=%d)",
-                            len(audio_bytes),
-                            sanitize_for_log(user_id),
-                            sanitize_for_log(payload.sequence_number),
-                        )
                     except Exception as send_err:
                         logger.warning(
                             "Egress: WebSocket send failed for user=%s: %s",
