@@ -38,6 +38,11 @@ class STTWorker(BaseConsumer):
     group_id = "stt-worker-group"
     event_schema = AudioChunkEvent
 
+    # Skip audio chunks older than 2 minutes — they belong to sessions whose
+    # room IDs no longer exist in Redis, so the translation worker would find
+    # no participants and produce nothing anyway.
+    max_message_age_ms = 120_000  # 2 minutes
+
     async def handle(self, event: BaseEvent[Any]) -> None:
         """Process a single audio chunk: decode → STT → publish transcript.
 

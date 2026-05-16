@@ -47,6 +47,7 @@ class TTSWorker(BaseConsumer):
     topic = TEXT_TRANSLATED
     group_id = "tts-worker-group"
     event_schema = TranslationEvent
+    max_message_age_ms = 120_000  # skip translations from dead sessions
 
     async def handle(self, event: BaseEvent[Any]) -> None:
         """Process a translation: synthesize audio → publish.

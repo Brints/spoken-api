@@ -40,6 +40,11 @@ class BaseConsumer(abc.ABC):
     group_id: str
     event_schema: type[BaseEvent[Any]]
 
+    # Subclasses can set this to skip messages older than N ms.
+    # None = no staleness filter (default). Useful for real-time
+    # audio workers to discard backlogged chunks from dead sessions.
+    max_message_age_ms: int | None = None
+
     # Declared here so Mypy can track it on the class body
     _initialized: bool = False
 
@@ -107,6 +112,25 @@ class BaseConsumer(abc.ABC):
             async for msg in self._consumer:
                 if not self._running:
                     break
+
+                # Staleness guard: skip (and commit past) messages that are
+                # older than `max_message_age_ms`. This prevents workers from
+                # processing large backlogs of audio from dead sessions whose
+                # room IDs no longer exist in Redis.
+                if self.max_message_age_ms is not None:
+                    import time as _time
+
+                    age_ms = _time.time() * 1000 - msg.timestamp
+                    if age_ms > self.max_message_age_ms:
+                        topic_safe = sanitize_log_args(self.topic)[0]
+                        logger.debug(
+                            "Skipping stale message on '%s' (age=%.0fms > limit=%dms)",
+                            topic_safe,
+                            age_ms,
+                            self.max_message_age_ms,
+                        )
+                        await self._consumer.commit()
+                        continue
 
                 try:
                     event = self.event_schema.model_validate(msg.value)

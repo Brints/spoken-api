@@ -73,13 +73,19 @@ class KafkaManager:
         logger.info("Registered consumer for topic: '%s'", topic_safe)
 
     async def _init_topics(self) -> None:
-        """Create required topics if they don't exist."""
+        """Create required topics if they don't exist, then enforce retention."""
         from aiokafka.admin import (  # type: ignore[import-untyped]
             AIOKafkaAdminClient,
             NewTopic,
         )
 
-        from app.kafka.topics import TOPICS_TO_CREATE
+        from app.kafka.topics import (
+            AUDIO_RAW,
+            AUDIO_SYNTHESIZED,
+            TEXT_ORIGINAL,
+            TEXT_TRANSLATED,
+            TOPICS_TO_CREATE,
+        )
 
         admin_client = AIOKafkaAdminClient(
             bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS
@@ -108,6 +114,42 @@ class KafkaManager:
                 topic_names = [t.name for t in topics_to_create_metadata]
                 logger.info("Creating missing Kafka topics: %s", topic_names)
                 await admin_client.create_topics(topics_to_create_metadata)
+
+            # --- Enforce short retention on real-time pipeline topics ---
+            # 5 minutes is more than enough for any active session; anything
+            # older is from a dead session and should be discarded automatically.
+            # This works whether the topic was just created or already existed.
+            PIPELINE_TOPICS = [
+                AUDIO_RAW,
+                AUDIO_SYNTHESIZED,
+                TEXT_ORIGINAL,
+                TEXT_TRANSLATED,
+            ]
+            RETENTION_MS = "300000"  # 5 minutes
+
+            try:
+                from aiokafka.admin import ConfigResource
+
+                config_resources = [
+                    ConfigResource(
+                        resource_type="topic",
+                        name=topic,
+                        configs={"retention.ms": RETENTION_MS},
+                    )
+                    for topic in PIPELINE_TOPICS
+                ]
+                await admin_client.alter_configs(config_resources)
+                logger.info(
+                    "Set retention.ms=%s on pipeline topics: %s",
+                    RETENTION_MS,
+                    PIPELINE_TOPICS,
+                )
+            except Exception as alter_err:
+                error_safe = sanitize_log_args(alter_err)[0]
+                logger.warning(
+                    "Could not set topic retention (non-fatal): %s", error_safe
+                )
+
         except Exception as e:
             error_safe = sanitize_log_args(e)[0]
             logger.warning("Failed to auto-create Kafka topics: %s", error_safe)
